@@ -1,0 +1,6 @@
+# your own figures and everything generated from them stay local
+/*.pdf
+out/
+
+__pycache__/
+.DS_Store

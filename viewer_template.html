@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} · Plot Viewer</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e2e2dd;
+    --accent: #2b59c3; --chip: #efefeb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --panel: #20201e; --ink: #ececea; --muted: #9a9a94; --line: #34342f;
+      --accent: #7ea2f0; --chip: #2a2a27;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header span { color: var(--muted); font-size: 13px; }
+  .app { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 50px); }
+  aside { border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; max-height: calc(100vh - 50px); }
+  h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+  h2:first-child { margin-top: 0; }
+  select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+                   border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  select { width: 100%; }
+  button:hover { border-color: var(--accent); }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+  .thumb { background: #fff; border: 2px solid transparent; border-radius: 6px; padding: 3px; cursor: pointer;
+           display: flex; flex-direction: column; align-items: stretch; outline: 1px solid var(--line); }
+  .thumb svg { width: 100%; height: 64px; display: block; }
+  .thumb small { color: #555; font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .thumb.on { border-color: var(--accent); outline-color: var(--accent); }
+  .pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .pick-label { font-size: 12px; color: var(--muted); margin: 10px 0 6px; }
+  .chip { background: #fff; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 6px;
+          min-width: 34px; height: 30px; display: inline-flex; align-items: center; justify-content: center; color: #1d1d1b; }
+  .chip svg { height: 20px; width: auto; display: block; }
+  .chip.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+  .note { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 1em; }
+  .ds { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 6px; }
+  .ds:hover { background: var(--chip); }
+  .ds label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; }
+  .ds .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sw { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+  .ds button { padding: 1px 8px; font-size: 12px; }
+  .row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .empty { color: var(--muted); font-size: 13px; }
+  main { padding: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .stage { flex: 1; background: #fff; border-radius: 10px; border: 1px solid var(--line);
+           display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 60vh; }
+  .stage svg { width: 100%; height: 100%; max-height: calc(100vh - 150px); }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bar .label { font-weight: 600; }
+  .bar .hint { color: var(--muted); font-size: 12px; }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: none; }
+    main { padding: 16px; }
+    .stage { min-height: 50vh; }
+  }
+</style>
+<style id="hide-rules"></style>
+</head>
+<body>
+<header><h1>{{TITLE}}</h1><span id="sub"></span></header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{{DEFS}}</defs></svg>
+<div class="app">
+  <aside>
+    <h2>Figure</h2>
+    <select id="page"></select>
+    <h2 id="panelhead">Panel</h2>
+    <div id="picker"></div>
+    <div class="thumbs" id="thumbs"></div>
+    <h2>Datasets</h2>
+    <div id="datasets"></div>
+  </aside>
+  <main>
+    <div class="bar">
+      <div><span class="label" id="label"></span></div>
+      <div class="row" style="margin:0">
+        <span class="hint">← → switch panel</span>
+        <button id="dl">Download SVG</button>
+      </div>
+    </div>
+    <div class="stage"><svg id="view" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  </main>
+</div>
+<script>
+const META = {{META}};
+const NS = "http://www.w3.org/2000/svg";
+const hidden = new Set();
+let P = META[0], cur = -1;  // cur = -1 means whole page
+let selA = null, selB = null;  // chosen parameters (corner plots)
+
+const $ = id => document.getElementById(id);
+
+function viewOf(i) {
+  return i < 0 ? [0, 0, P.width, P.height] : P.panels[i].view;
+}
+function masksOf(i) {
+  return i < 0 ? [] : P.panels[i].masks;
+}
+function maskMarkup(i) {
+  return masksOf(i).map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff"/>`).join("");
+}
+
+// the page clipped to panel i's crop box (otherwise letterboxing reveals neighbouring panels)
+let uid = 0;
+function viewMarkup(i) {
+  const [x, y, w, h] = viewOf(i), id = "cv" + (uid++);
+  return `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>` +
+         `<g clip-path="url(#${id})"><use href="#page-${P.page}"/>${maskMarkup(i)}</g>`;
+}
+
+// corner plots: inner panels carry no tick values, so draw the column's x axis and the row's
+// y axis around the chosen panel. Tick values are redrawn as text at a size relative to the
+// panel; axis labels are the figure's own glyphs, scaled to match.
+const SERIF = "'CMU Serif','Latin Modern Roman','Computer Modern',Georgia,'Times New Roman',serif";
+function composed(i) {
+  const G = P.grid, [r, c] = cellOf(i), [ax, ay, aw, ah] = P.panels[i].axes;
+  const [pl, pt, pr, pb] = P.panels[i].pads;
+  const S = Math.min(aw, ah), fs = 0.075 * S, gap = 0.035 * S, Lh = 0.1 * S;
+  let x0 = ax - pl, y0 = ay - pt, x1 = ax + aw + pr, y1 = ay + ah + pb;
+  const grow = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+  const esc = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  // copy a box of the page, scaled by k, so that its centre lands on (cx, cy)
+  const glyphs = (b, k, cx, cy) => {
+    const id = "cv" + (uid++), bx = b[0] + b[2] / 2, by = b[1] + b[3] / 2;
+    grow(cx - b[2] * k / 2, cy - b[3] * k / 2); grow(cx + b[2] * k / 2, cy + b[3] * k / 2);
+    return `<g transform="translate(${cx},${cy}) scale(${k}) translate(${-bx},${-by})">` +
+           `<clipPath id="${id}"><rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}"/></clipPath>` +
+           `<g clip-path="url(#${id})"><use href="#page-${P.page}"/></g></g>`;
+  };
+  const id = "cv" + (uid++);
+  let m = `<clipPath id="${id}"><rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/></clipPath>` +
+          `<g clip-path="url(#${id})"><use href="#page-${P.page}"/></g>`;
+  let t = `<g font-family="${SERIF}" font-size="${fs}" fill="#000">`;
+
+  const X = G.xaxis[c];
+  const ty = ay + ah + pb + gap + fs * 0.8;
+  X.ticks.forEach(([x, s]) => { t += `<text x="${x}" y="${ty}" text-anchor="middle">${esc(s)}</text>`; grow(x - s.length * fs * 0.3, ty + fs * 0.2); });
+  if (X.label) {
+    const k = Lh / X.label[3] * 1.6;  // label boxes carry padding; 1.6 brings glyph height to ~Lh
+    m += glyphs(X.label, k, ax + aw / 2, ty + gap + X.label[3] * k / 2);
+  }
+  if (r !== c) {
+    const Y = G.yaxis[r];
+    const tx = ax - pl - 1.5 * gap;  // clear of the frame and any outward tick marks
+    let wide = 0;
+    Y.ticks.forEach(([y, s]) => { t += `<text x="${tx}" y="${y + fs * 0.35}" text-anchor="end">${esc(s)}</text>`; wide = Math.max(wide, s.length * fs * 0.55); grow(tx - s.length * fs * 0.55, y); });
+    if (Y.label) {
+      const k = Lh / Y.label[2] * 1.6;
+      m += glyphs(Y.label, k, tx - wide - gap - Y.label[2] * k / 2, ay + ah / 2);
+    }
+  }
+  m += t + "</g>";
+  const pad = 0.04 * S;
+  return { view: [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad], markup: m };
+}
+
+function miniSvg(i) {
+  const s = document.createElementNS(NS, "svg");
+  s.setAttribute("viewBox", viewOf(i).join(" "));
+  s.innerHTML = viewMarkup(i);
+  return s;
+}
+
+function renderThumbs() {
+  const box = $("thumbs"); box.innerHTML = "";
+  const items = [{ name: "Whole figure" }, ...P.panels];
+  items.forEach((p, k) => {
+    const i = k - 1, d = document.createElement("div");
+    d.className = "thumb" + (i === cur ? " on" : "");
+    d.title = p.name;
+    d.appendChild(miniSvg(i));
+    const t = document.createElement("small"); t.textContent = p.name; d.appendChild(t);
+    d.onclick = () => select(i);
+    box.appendChild(d);
+  });
+}
+
+// corner plots: pick two parameters instead of browsing panel thumbnails
+function cellOf(i) {
+  for (const [k, v] of Object.entries(P.grid.cells)) if (v === i) return k.split(",").map(Number);
+  return null;
+}
+
+function renderPicker() {
+  const box = $("picker"); box.innerHTML = "";
+  const G = P.grid;
+  $("panelhead").textContent = G ? "Parameters" : "Panel";
+  $("thumbs").style.display = G ? "none" : "";
+  if (!G) return;
+  [["Parameter A", "A"], ["Parameter B", "B"]].forEach(([title, which]) => {
+    const l = document.createElement("div"); l.className = "pick-label"; l.textContent = title;
+    const row = document.createElement("div"); row.className = "pick"; row.dataset.which = which;
+    G.params.forEach((p, i) => {
+      const b = document.createElement("button"); b.className = "chip"; b.title = p.name; b.dataset.i = i;
+      if (p.view) {
+        const s = document.createElementNS(NS, "svg"), [x, y, w, h] = p.view, id = "lb" + (uid++);
+        s.setAttribute("viewBox", p.view.join(" "));
+        s.style.aspectRatio = w / h;
+        s.innerHTML = `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>` +
+                      `<g clip-path="url(#${id})"><use href="#page-${P.page}"/></g>`;
+        b.appendChild(s);
+      } else b.textContent = p.name;
+      b.onclick = () => {
+        if (which === "A") selA = selA === i ? null : i; else selB = selB === i ? null : i;
+        showSelection();
+      };
+      row.appendChild(b);
+    });
+    box.append(l, row);
+  });
+  const r = document.createElement("div"); r.className = "row";
+  const whole = document.createElement("button"); whole.textContent = "Whole figure";
+  whole.onclick = () => { selA = selB = null; select(-1); };
+  r.appendChild(whole);
+  const note = document.createElement("div"); note.className = "note"; note.id = "picknote";
+  box.append(r, note);
+}
+
+function showSelection() {
+  const G = P.grid;
+  let a = selA, b = selB;
+  if (a === null) [a, b] = [b, null];
+  if (a === null) return select(-1);
+  if (b === null) b = a;  // one parameter: its 1D distribution
+  const i = G.cells[`${Math.max(a, b)},${Math.min(a, b)}`];
+  if (i === undefined) { $("picknote").textContent = "That combination isn't plotted in this figure."; return; }
+  select(i);
+}
+
+function syncChips() {
+  if (!P.grid) return;
+  // keep the chips in step with the panel shown (it may have been reached with the arrow keys)
+  const c = cur < 0 ? null : cellOf(cur);
+  if (!c) selA = selB = null;
+  else if (c[0] !== c[1]) { selA = c[1]; selB = c[0]; }
+  else if (selA !== c[0] && selB !== c[0]) { selA = c[0]; selB = null; }
+  document.querySelectorAll(".pick").forEach(row => {
+    const sel = row.dataset.which === "A" ? selA : selB;
+    row.querySelectorAll(".chip").forEach(ch => ch.classList.toggle("on", +ch.dataset.i === sel));
+  });
+  $("picknote").textContent = cur < 0 ? "Pick one parameter for its 1D distribution, or two for their contour." : "";
+}
+
+function renderDatasets() {
+  const box = $("datasets"); box.innerHTML = "";
+  if (!P.datasets.length) {
+    box.innerHTML = '<div class="empty">No separable coloured datasets on this figure.</div>';
+    return;
+  }
+  P.datasets.forEach(d => {
+    const row = document.createElement("div"); row.className = "ds";
+    const lab = document.createElement("label");
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !hidden.has(d.id);
+    cb.onchange = () => { cb.checked ? hidden.delete(d.id) : hidden.add(d.id); applyHidden(); };
+    const sw = document.createElement("span"); sw.className = "sw"; sw.style.background = d.colour;
+    if (d.shades.length > 1) sw.style.background = `linear-gradient(135deg, ${d.colour} 50%, ${d.shades.find(s => s !== d.colour)} 50%)`;
+    const nm = document.createElement("span"); nm.className = "name"; nm.textContent = d.name;
+    lab.append(cb, sw, nm);
+    const only = document.createElement("button"); only.textContent = "only";
+    only.title = "Show only this dataset";
+    only.onclick = () => { P.datasets.forEach(o => o.id === d.id ? hidden.delete(o.id) : hidden.add(o.id)); applyHidden(); renderDatasets(); };
+    row.append(lab, only); box.appendChild(row);
+  });
+  const r = document.createElement("div"); r.className = "row";
+  const all = document.createElement("button"); all.textContent = "Show all";
+  all.onclick = () => { P.datasets.forEach(o => hidden.delete(o.id)); applyHidden(); renderDatasets(); };
+  r.appendChild(all); box.appendChild(r);
+}
+
+function applyHidden() {
+  $("hide-rules").textContent = [...hidden].map(id => `.${id}{display:none}`).join("\n");
+}
+
+function select(i) {
+  cur = i;
+  if (P.grid && i >= 0) {
+    const v = composed(i);
+    $("view").setAttribute("viewBox", v.view.join(" "));
+    $("view").innerHTML = v.markup;
+  } else {
+    $("view").setAttribute("viewBox", viewOf(i).join(" "));
+    $("view").innerHTML = viewMarkup(i);
+  }
+  $("label").textContent = i < 0 ? "Whole figure" : P.panels[i].name;
+  document.querySelectorAll(".thumb").forEach((t, k) => t.classList.toggle("on", k - 1 === i));
+  syncChips();
+}
+
+function setPage(k) {
+  P = META[k];
+  $("page").value = k;
+  $("sub").textContent = `page ${P.page} · ${P.panels.length} panels · ${P.datasets.length} datasets` +
+                         (P.method === "raster" ? " · raster figure (panels cut by whitespace)" : "");
+  selA = selB = null;
+  renderThumbs(); renderPicker(); renderDatasets();
+  select(P.panels.length === 1 ? 0 : -1);
+}
+
+META.forEach((m, k) => {
+  const o = document.createElement("option"); o.value = k;
+  o.textContent = `Page ${m.page} — ${m.panels.length} panel${m.panels.length === 1 ? "" : "s"}` +
+                  (m.datasets.length ? `, ${m.datasets.length} datasets` : "");
+  $("page").appendChild(o);
+});
+$("page").onchange = e => setPage(+e.target.value);
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT") return;
+  if (e.key === "ArrowRight") select(Math.min(cur + 1, P.panels.length - 1));
+  if (e.key === "ArrowLeft") select(Math.max(cur - 1, -1));
+});
+
+$("dl").onclick = () => {
+  // the view references the page by id, so ship a copy of it (minus hidden datasets) as a def
+  const g = document.getElementById("page-" + P.page).cloneNode(true);
+  hidden.forEach(id => g.querySelectorAll("." + id).forEach(el => el.remove()));
+  const v = $("view").getAttribute("viewBox").split(" ");
+  const svg = `<svg xmlns="${NS}" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${v.join(" ")}" ` +
+              `width="${v[2]}" height="${v[3]}"><defs>${g.outerHTML}</defs>${$("view").innerHTML}</svg>`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  const nm = (cur < 0 ? "figure" : P.panels[cur].name).replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
+  a.download = `page${P.page}_${nm}.svg`; a.click();
+};
+
+setPage(0);
+</script>
+</body>
+</html>
