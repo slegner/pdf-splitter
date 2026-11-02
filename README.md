@@ -52,7 +52,7 @@ python3 split_plots.py --help                      # everything
 |---|---|
 | **Figure** (dropdown) | Choose the PDF page, if there's more than one. |
 | **Parameters** (corner plots) | Pick a **Parameter A** and a **Parameter B** to see their 2D contour. Order doesn't matter. Pick one, or the same one twice, for its 1D distribution. Click a selected button again to clear it. **Whole figure** goes back to the full plot. The buttons show the figure's own axis labels. |
-| **Panel** thumbnails (other figures) | Click a thumbnail to show that panel. |
+| **Panel** thumbnails (other figures) | Click a thumbnail to show that panel. A figure with a single panel skips this and just shows the figure, and no separate panel files are exported for it. |
 | ← → keys | Step through panels one at a time. |
 | **Datasets** | Tick or untick to show or hide a dataset. **only** shows just that one; **Show all** resets. Swatches show each dataset's dark and light shades. |
 | **Download SVG** | Saves the current view (panel, axes and dataset selection) as a vector SVG, e.g. for slides. |
@@ -126,12 +126,29 @@ In the viewer, hiding a dataset adds a CSS rule like `.p1-d2 { display: none }`.
 - Give each dataset a clearly different colour, and include a **legend**.
 - LaTeX text (`text.usetex`, as getdist uses) gives the best parameter names.
 
+## Example gallery
+`examples/make_gallery.py` makes eight test figures of different types in `examples/gallery/`. Spectra and distances come from CAMB for Planck ΛCDM, ΛCDM with H₀ = 73, and wCDM with w = −0.9; data points and posteriors are mock. Run it with `~/Desktop/PhD2025-26/env_camb_new/bin/python examples/make_gallery.py`, then split each one with `python3 split_plots.py examples/gallery/<name>.pdf`.
+
+| Figure | Panels | Datasets found | Result |
+|---|---|---|---|
+| 1 CMB TT + residual panel | 2 | 3 models | ✅ |
+| 2 Matter power spectrum (log–log) | 1 | 3 models | ✅ |
+| 3 BAO D_M/r_d, D_H/r_d + mock data | 2 | 3 models + data points | ✅ |
+| 4 H₀ measurements (horizontal error bars) | 1 | 3 method groups | ✅ |
+| 5 1D posteriors, 1×3 grid | 3 | 3 | ✅ |
+| 6 Black lines, solid / dashed / dotted | 1 | none | ❌ expected: datasets differ only by line style |
+| 7 Correlation-matrix heatmap | 1 | none | ✅ correctly treated as a colour map |
+| 8 fgivenx-style w(z) with 1σ/2σ bands | 1 | 2 | ✅ |
+
+Also tested: `LCDM_Planck_DESI_SH0ES.pdf`, made with anesthetic from real chains by `examples/plot_planck_desi_shoes.py` (3 panels; Planck, DESI DR2 and SH0ES all separated).
+
 ## Limits
 - Parameter names in the header come from the PDF's text. LaTeX/usetex figures give full names (Ωm, τreio). Plain matplotlib mathtext draws some symbols as shapes, so its text names can be partial ("m" for Ω_m), but the buttons and axis labels still show the full label as drawn.
 - Redrawn tick values use a Computer Modern-style serif if one is installed, otherwise Georgia/Times.
 - The exported `panels/*.png|svg` are plain crops of each panel, so inner corner-plot panels have no tick values there. The redrawn axes only appear in the viewer and in its Download SVG.
 - Datasets are separated only for **vector** PDFs (matplotlib, getdist, corner, etc. saved as PDF). Rasterised contours (e.g. `rasterized=True`, or a PNG pasted into the PDF) can be split into panels but not into datasets.
-- Datasets drawn in the same colour, distinguished only by line style, can't be separated by colour.
+- Datasets drawn in the same colour, distinguished only by line style or marker shape, aren't separated (gallery figure 6).
+- When a dataset is hidden, its legend swatch hides but its legend text stays.
 - Filled colour-map contour plots (viridis, etc.) are detected as colour maps and are not split.
 
 ## Files

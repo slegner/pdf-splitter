@@ -83,7 +83,7 @@
     <div class="bar">
       <div><span class="label" id="label"></span></div>
       <div class="row" style="margin:0">
-        <span class="hint">← → switch panel</span>
+        <span class="hint" id="hint">← → switch panel</span>
         <button id="dl">Download SVG</button>
       </div>
     </div>
@@ -193,8 +193,10 @@ function cellOf(i) {
 function renderPicker() {
   const box = $("picker"); box.innerHTML = "";
   const G = P.grid;
+  const single = !G && P.panels.length <= 1;  // nothing to choose: just show the figure
   $("panelhead").textContent = G ? "Parameters" : "Panel";
-  $("thumbs").style.display = G ? "none" : "";
+  $("panelhead").style.display = single ? "none" : "";
+  $("thumbs").style.display = G || single ? "none" : "";
   if (!G) return;
   [["Parameter A", "A"], ["Parameter B", "B"]].forEach(([title, which]) => {
     const l = document.createElement("div"); l.className = "pick-label"; l.textContent = title;
@@ -298,11 +300,13 @@ function select(i) {
 function setPage(k) {
   P = META[k];
   $("page").value = k;
-  $("sub").textContent = `page ${P.page} · ${P.panels.length} panels · ${P.datasets.length} datasets` +
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  $("sub").textContent = `page ${P.page} · ${plural(P.panels.length, "panel")} · ${plural(P.datasets.length, "dataset")}` +
                          (P.method === "raster" ? " · raster figure (panels cut by whitespace)" : "");
   selA = selB = null;
+  $("hint").style.display = P.panels.length <= 1 ? "none" : "";
   renderThumbs(); renderPicker(); renderDatasets();
-  select(P.panels.length === 1 ? 0 : -1);
+  select(-1);
 }
 
 META.forEach((m, k) => {
@@ -315,6 +319,7 @@ $("page").onchange = e => setPage(+e.target.value);
 
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "SELECT") return;
+  if (P.panels.length <= 1) return;
   if (e.key === "ArrowRight") select(Math.min(cur + 1, P.panels.length - 1));
   if (e.key === "ArrowLeft") select(Math.max(cur - 1, -1));
 });

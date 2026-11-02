@@ -19,6 +19,7 @@ import colorsys
 import html
 import json
 import re
+import unicodedata
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -316,7 +317,8 @@ def process_page(page, pno, args):
     lines, quads = [], []  # quads: the (possibly rotated) outline of each text line
     for b in page.get_text("dict")["blocks"]:
         for l in b.get("lines", []):
-            t = "".join(s["text"] for s in l["spans"]).strip()
+            # NFKC turns typographic ligatures from LaTeX ("ﬁ") back into plain letters
+            t = unicodedata.normalize("NFKC", "".join(s["text"] for s in l["spans"])).strip()
             if t:
                 lines.append((t, fitz.Rect(l["bbox"]), l["dir"]))
                 quads.append(fitz.recover_line_quad(l, l["spans"]))
@@ -470,8 +472,10 @@ def process_page(page, pno, args):
 
 def write_panel_files(doc, pages, outdir, dpi):
     pdir = outdir / "panels"
-    pdir.mkdir(parents=True, exist_ok=True)
     for P in pages:
+        if len(P["panels"]) <= 1:
+            continue  # a single-panel figure needs no separate panel file
+        pdir.mkdir(parents=True, exist_ok=True)
         page = doc[P["page"] - 1]
         for i, pan in enumerate(P["panels"], 1):
             stem = "p%d_%02d_%s" % (P["page"], i, re.sub(r"[^\w]+", "-", pan["name"]).strip("-").lower())
@@ -531,8 +535,9 @@ def main():
 
     pages = [process_page(doc[p - 1], p, args) for p in sel]
     for P in pages:
-        print("page %d: %d panels (%s), %d datasets%s" % (
-            P["page"], len(P["panels"]), P["method"], len(P["datasets"]),
+        print("page %d: %d panel%s (%s), %d dataset%s%s" % (
+            P["page"], len(P["panels"]), "" if len(P["panels"]) == 1 else "s", P["method"],
+            len(P["datasets"]), "" if len(P["datasets"]) == 1 else "s",
             (" -> " + ", ".join(d["name"] for d in P["datasets"])) if P["datasets"] else ""))
     if not args.no_files:
         write_panel_files(doc, pages, outdir, args.dpi)
